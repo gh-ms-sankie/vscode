@@ -7,10 +7,10 @@ import { IURLService, IURLHandler, IURLCreateOptions } from 'vs/platform/url/com
 import { URI } from 'vs/base/common/uri';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/async';
-import { toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export abstract class AbstractURLService implements IURLService {
+export abstract class AbstractURLService extends Disposable implements IURLService {
 
 	_serviceBrand!: ServiceIdentifier<any>;
 
