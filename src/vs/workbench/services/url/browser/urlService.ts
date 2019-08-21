@@ -51,6 +51,16 @@ export class BrowserURLService extends AbstractURLService {
 
 class SelfhostURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
+	static FETCH_INTERVAL = 500; 		// fetch every 500ms
+	static FETCH_TIMEOUT = 1000 * 5; 	// ...but stop after 5min
+
+	static QUERY_KEYS = {
+		ID: 'vscode-id',
+		PATH: 'vscode-path',
+		QUERY: 'vscode-query',
+		FRAGMENT: 'vscode-fragment'
+	};
+
 	private readonly _onCallback: Emitter<URI> = this._register(new Emitter<URI>());
 	readonly onCallback: Event<URI> = this._onCallback.event;
 
@@ -64,42 +74,61 @@ class SelfhostURLCallbackProvider extends Disposable implements IURLCallbackProv
 	create(identifier: string, options?: IURLCreateOptions): URI {
 		const { path, query, fragment } = options ? options : { path: undefined, query: undefined, fragment: undefined };
 
-		let baseAppUriRaw = `${window.location.origin}/callback?vscode-id=${identifier}`;
-
+		const payload: Map<string, string> = new Map();
 		if (path) {
-			baseAppUriRaw += `&vscode-path=${encodeURIComponent(path)}`;
+			payload.set(SelfhostURLCallbackProvider.QUERY_KEYS.PATH, path);
 		}
 
 		if (query) {
-			baseAppUriRaw += `&vscode-query=${encodeURIComponent(query)}`;
+			payload.set(SelfhostURLCallbackProvider.QUERY_KEYS.QUERY, query);
 		}
 
 		if (fragment) {
-			baseAppUriRaw += `&vscode-fragment=${encodeURIComponent(fragment)}`;
+			payload.set(SelfhostURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
 		}
 
-		this.doFetch(identifier);
+		// Start to poll on the callback being fired (TODO@Ben optimize this, use management connection instead)
+		this.periodicFetchCallback(identifier, Date.now());
 
-		return URI.parse(baseAppUriRaw);
+		return this.doCreateUri(identifier, 'callback', payload);
 	}
 
-	private async doFetch(identifier: string): Promise<void> {
+	private async periodicFetchCallback(identifier: string, startTime: number): Promise<void> {
+
+		// Ask server for callback results
 		const result = await this.requestService.request({
-			url: `${window.location.origin}/fetch-callback?vscode-id=${identifier}`
+			url: this.doCreateUri(identifier, 'fetch-callback').toString(true)
 		}, CancellationToken.None);
 
+		// Check for callback results
 		const content = await streamToBuffer(result.stream);
-
-		if (content.byteLength === 0) {
-			setTimeout(() => this.doFetch(identifier), 500);
-		} else {
+		if (content.byteLength > 0) {
 			try {
 				const uris: UriComponents[] = JSON.parse(content.toString());
 				uris.forEach(uri => this._onCallback.fire(URI.revive(uri)));
 			} catch (error) {
 				this.logService.error(error);
 			}
+
+			return; // done
 		}
+
+		// Continue fetching unless we hit the timeout
+		if (Date.now() - startTime < SelfhostURLCallbackProvider.FETCH_TIMEOUT) {
+			setTimeout(() => this.periodicFetchCallback(identifier, startTime), SelfhostURLCallbackProvider.FETCH_INTERVAL);
+		}
+	}
+
+	private doCreateUri(identifier: string, path: string, payload?: Map<string, string>): URI {
+		let query = `${SelfhostURLCallbackProvider.QUERY_KEYS.ID}=${identifier}`;
+
+		if (payload) {
+			payload.forEach((value, key) => {
+				query += `&${key}=${value}`;
+			});
+		}
+
+		return URI.parse(window.location.href).with({ path, query });
 	}
 }
 
