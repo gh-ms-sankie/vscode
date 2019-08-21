@@ -8,7 +8,7 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -73,12 +73,6 @@ export class SimpleExtensionTipsService implements IExtensionTipsService {
 }
 
 registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
-
-//#endregion
-
-//#region Log
-
-export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
